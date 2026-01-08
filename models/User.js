@@ -45,6 +45,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    role: {
+      type: String,
+      enum: ['SUPER_ADMIN', 'USER'],
+      default: 'USER',
+    },
     isActive: {
       type: Boolean,
       default: true,

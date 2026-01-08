@@ -19,16 +19,62 @@ const app = express();
 // Default to 5001 to avoid conflict with common port 5000
 const PORT = parseInt(process.env.PORT) || 5001;
 
-// Security middleware
-app.use(helmet());
-
-// CORS configuration
+// CORS configuration - must be before helmet
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:4000',
+  origin: function (origin, callback) {
+    // In development, allow all localhost origins
+    if (process.env.NODE_ENV === 'development') {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Allow all localhost origins in development
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
+    }
+
+    // Default allowed origins for development (fallback)
+    const defaultOrigins = [
+      'http://localhost:4000',
+      'http://localhost:4001',
+      'http://localhost:3000',
+      'http://localhost:5173', // Vite default
+      'http://localhost:5174',
+    ];
+
+    // Get allowed origins from environment variable (comma-separated) or use defaults
+    const allowedOrigins = process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+      : defaultOrigins;
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Log the rejected origin for debugging
+      console.log(`⚠️  CORS: Rejected origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 app.use(cors(corsOptions));
+
+// Security middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
