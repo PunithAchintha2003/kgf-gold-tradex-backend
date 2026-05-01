@@ -30,7 +30,7 @@ export const register = async (req, res, next) => {
     });
 
     // Generate tokens
-    const accessToken = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user._id, user.role);
     const refreshToken = generateRefreshToken(user._id);
 
     // Save refresh token to database
@@ -96,7 +96,7 @@ export const login = async (req, res, next) => {
     }
 
     // Generate tokens
-    const accessToken = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user._id, user.role);
     const refreshToken = generateRefreshToken(user._id);
 
     // Save refresh token to database
@@ -177,7 +177,7 @@ export const refreshToken = async (req, res, next) => {
     }
 
     // Generate new access token
-    const newAccessToken = generateAccessToken(user._id);
+    const newAccessToken = generateAccessToken(user._id, user.role);
 
     res.status(200).json({
       success: true,
