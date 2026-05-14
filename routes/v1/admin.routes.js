@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getAllUsers,
   getUserById,
+  createUser,
   updateUser,
   deleteUser,
   getDashboardStats,
@@ -11,6 +12,7 @@ import { requireAdmin } from '../../middleware/admin.js';
 import {
   body,
   param,
+  query,
 } from 'express-validator';
 import { validateRequest } from '../../middleware/validateRequest.js';
 
@@ -44,12 +46,16 @@ const updateUserValidation = [
     .withMessage('Address cannot be empty'),
   body('role')
     .optional()
-    .isIn(['SUPER_ADMIN', 'USER'])
-    .withMessage('Role must be either SUPER_ADMIN or USER'),
+    .isIn(['SUPER_ADMIN', 'USER', 'MERCHANT'])
+    .withMessage('Role must be SUPER_ADMIN, USER, or MERCHANT'),
   body('isActive')
     .optional()
     .isBoolean()
     .withMessage('isActive must be a boolean'),
+  body('merchantVerified')
+    .optional()
+    .isBoolean()
+    .withMessage('merchantVerified must be a boolean'),
 ];
 
 const getUserByIdValidation = [
@@ -68,9 +74,37 @@ const deleteUserValidation = [
     .withMessage('Invalid user ID'),
 ];
 
+const listUsersValidation = [
+  query('page').optional().isInt({ min: 1 }).withMessage('page must be a positive integer'),
+  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be between 1 and 100'),
+  query('search').optional().isString().isLength({ max: 200 }).withMessage('search is too long'),
+  query('role')
+    .optional()
+    .isIn(['SUPER_ADMIN', 'USER', 'MERCHANT'])
+    .withMessage('role must be SUPER_ADMIN, USER, or MERCHANT'),
+];
+
+const createUserValidation = [
+  body('name').trim().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Name is required (2–100 characters)'),
+  body('email').trim().notEmpty().isEmail().withMessage('Valid email is required'),
+  body('phone').trim().notEmpty().withMessage('Phone is required'),
+  body('password')
+    .notEmpty()
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters'),
+  body('address').trim().notEmpty().withMessage('Address is required'),
+  body('role')
+    .optional()
+    .isIn(['SUPER_ADMIN', 'USER', 'MERCHANT'])
+    .withMessage('Invalid role'),
+  body('merchantVerified').optional().isBoolean(),
+  body('isActive').optional().isBoolean(),
+];
+
 // Routes
 router.get('/dashboard/stats', getDashboardStats);
-router.get('/users', getAllUsers);
+router.post('/users', createUserValidation, validateRequest, createUser);
+router.get('/users', listUsersValidation, validateRequest, getAllUsers);
 router.get('/users/:id', getUserByIdValidation, validateRequest, getUserById);
 router.put('/users/:id', updateUserValidation, validateRequest, updateUser);
 router.delete('/users/:id', deleteUserValidation, validateRequest, deleteUser);

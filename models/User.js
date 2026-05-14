@@ -47,8 +47,13 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['SUPER_ADMIN', 'USER'],
+      enum: ['SUPER_ADMIN', 'USER', 'MERCHANT'],
       default: 'USER',
+    },
+    /** Platform-verified seller (merchants need this to publish live listings) */
+    merchantVerified: {
+      type: Boolean,
+      default: false,
     },
     isActive: {
       type: Boolean,
