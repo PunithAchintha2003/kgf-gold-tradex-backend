@@ -50,7 +50,7 @@ export const getMerchantDashboardStats = async (req, res, next) => {
       return next(new AppError('User not found', 404));
     }
 
-    const [totalProducts, publishedProducts, draftProducts, stockAgg] = await Promise.all([
+    const [totalProducts, publishedProducts, draftProducts, stockAgg, orderStats] = await Promise.all([
       Product.countDocuments({ merchant: merchantId }),
       Product.countDocuments({ merchant: merchantId, isPublished: true }),
       Product.countDocuments({ merchant: merchantId, isPublished: false }),
@@ -58,9 +58,23 @@ export const getMerchantDashboardStats = async (req, res, next) => {
         { $match: { merchant: user._id } },
         { $group: { _id: null, units: { $sum: '$stock' } } },
       ]),
+      PurchaseOrder.aggregate([
+        { $match: { 'items.merchant': user._id } },
+        { $unwind: '$items' },
+        { $match: { 'items.merchant': user._id } },
+        {
+          $group: {
+            _id: null,
+            totalIncome: { $sum: { $multiply: ['$items.unitPriceLkr', '$items.quantity'] } },
+            orderIds: { $addToSet: '$_id' },
+          },
+        },
+      ]),
     ]);
 
     const inventoryUnits = stockAgg[0]?.units ?? 0;
+    const totalIncomeLkr = orderStats[0]?.totalIncome ?? 0;
+    const totalOrderCount = orderStats[0]?.orderIds?.length ?? 0;
 
     res.status(200).json({
       success: true,
@@ -71,6 +85,8 @@ export const getMerchantDashboardStats = async (req, res, next) => {
           publishedProducts,
           draftProducts,
           inventoryUnits,
+          totalIncomeLkr,
+          totalOrderCount,
         },
       },
     });
