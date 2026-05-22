@@ -6,6 +6,7 @@ import adminRoutes from './admin.routes.js';
 import merchantRoutes from './merchant.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import checkoutRoutes from './checkout.routes.js';
+import arTryOnRoutes from './arTryOn.routes.js';
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ router.use('/admin', adminRoutes);
 router.use('/merchant', merchantRoutes);
 router.use('/catalog', catalogRoutes);
 router.use('/checkout', checkoutRoutes);
+router.use('/ar-tryon', arTryOnRoutes);
 
 export default router;
 
