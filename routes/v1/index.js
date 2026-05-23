@@ -7,6 +7,11 @@ import merchantRoutes from './merchant.routes.js';
 import catalogRoutes from './catalog.routes.js';
 import checkoutRoutes from './checkout.routes.js';
 import arTryOnRoutes from './arTryOn.routes.js';
+import auctionRoutes from './auction.routes.js';
+import bidRoutes from './bid.routes.js';
+import merchantAuctionRoutes from './merchantAuction.routes.js';
+import chatRoutes from './chat.routes.js';
+import supportChatRoutes from './supportChat.routes.js';
 
 const router = express.Router();
 
@@ -29,6 +34,11 @@ router.use('/merchant', merchantRoutes);
 router.use('/catalog', catalogRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/ar-tryon', arTryOnRoutes);
+router.use('/auctions', auctionRoutes);
+router.use('/auctions/:id/bids', bidRoutes);
+router.use('/merchant/auctions', merchantAuctionRoutes);
+router.use('/chat', chatRoutes);
+router.use('/support', supportChatRoutes);
 
 export default router;
 

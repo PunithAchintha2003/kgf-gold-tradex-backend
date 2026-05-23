@@ -11,6 +11,8 @@ import { connectDB } from './config/database.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
 import apiRoutes from './routes/index.js';
+import { attachSocket } from './realtime/socket.js';
+import { startAuctionScheduler } from './realtime/auctionScheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -161,10 +163,15 @@ const startServer = async () => {
       process.exit(1);
     }
     
-    const server = app.listen(actualPort, () => {
+    const httpServer = http.createServer(app);
+    attachSocket(httpServer);
+    startAuctionScheduler();
+
+    const server = httpServer.listen(actualPort, () => {
       console.log(`🚀 Server running on port ${actualPort}`);
       console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 API: http://localhost:${actualPort}/api/v1`);
+      console.log(`🔌 WebSocket: http://localhost:${actualPort}/socket.io`);
     });
 
     // Handle server errors
