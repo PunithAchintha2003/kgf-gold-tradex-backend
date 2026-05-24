@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   getAllUsers,
   getUserById,
@@ -7,6 +8,7 @@ import {
   deleteUser,
   getDashboardStats,
 } from '../../controllers/admin.controller.js';
+import { downloadPlatformBackup } from '../../controllers/backup.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { requireAdmin } from '../../middleware/admin.js';
 import {
@@ -17,6 +19,17 @@ import {
 import { validateRequest } from '../../middleware/validateRequest.js';
 
 const router = express.Router();
+
+const backupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many backup requests. Please wait before exporting again.',
+  },
+});
 
 // All admin routes require authentication and admin privileges
 router.use(authenticate);
@@ -103,6 +116,7 @@ const createUserValidation = [
 
 // Routes
 router.get('/dashboard/stats', getDashboardStats);
+router.get('/backup', backupLimiter, downloadPlatformBackup);
 router.post('/users', createUserValidation, validateRequest, createUser);
 router.get('/users', listUsersValidation, validateRequest, getAllUsers);
 router.get('/users/:id', getUserByIdValidation, validateRequest, getUserById);

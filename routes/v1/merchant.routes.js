@@ -1,8 +1,10 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { body, param, query } from 'express-validator';
 import { authenticate } from '../../middleware/auth.js';
 import { requireMerchant } from '../../middleware/merchant.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
+import { downloadMerchantBackup } from '../../controllers/merchantBackup.controller.js';
 import {
   getMerchantDashboardStats,
   getMerchantOrders,
@@ -18,6 +20,17 @@ import { productImagesUpload, handleProductImagesMulterError } from '../../middl
 import { PRODUCT_CATEGORIES } from '../../constants/productCategories.js';
 
 const router = express.Router();
+
+const backupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many backup requests. Please wait before exporting again.',
+  },
+});
 
 router.use(authenticate);
 router.use(requireMerchant);
@@ -80,6 +93,7 @@ const updateLineDeliveryValidation = [
 ];
 
 router.get('/dashboard/stats', getMerchantDashboardStats);
+router.get('/backup', backupLimiter, downloadMerchantBackup);
 router.get('/orders', getMerchantOrders);
 router.patch(
   '/orders/:orderId/line-items/:lineItemId',

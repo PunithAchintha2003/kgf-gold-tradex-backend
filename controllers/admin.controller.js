@@ -282,6 +282,15 @@ export const deleteUser = async (req, res, next) => {
       return next(new AppError('User not found', 404));
     }
 
+    if (user.role === 'USER' || user.role === 'MERCHANT') {
+      return next(
+        new AppError(
+          'User and merchant accounts cannot be deleted. Deactivate the account instead.',
+          403
+        )
+      );
+    }
+
     await User.findByIdAndDelete(id);
 
     res.status(200).json({
