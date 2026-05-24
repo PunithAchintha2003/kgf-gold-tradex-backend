@@ -9,6 +9,8 @@ import {
   refreshToken,
   logout,
   getCurrentUser,
+  verifyEmail,
+  resendVerificationCode,
 } from '../../controllers/auth.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
@@ -17,8 +19,8 @@ const router = express.Router();
 
 // Rate limiting for auth routes
 const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 5, // 5 requests per window
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 5,
   message: {
     success: false,
     error: 'Too many authentication attempts, please try again later',
@@ -34,7 +36,28 @@ const authLimiter = rateLimit({
   },
 });
 
-// Validation rules
+const verificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.EMAIL_VERIFICATION_RATE_LIMIT || '10', 10),
+  message: {
+    success: false,
+    error: 'Too many verification attempts, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const resendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.EMAIL_RESEND_RATE_LIMIT || '3', 10),
+  message: {
+    success: false,
+    error: 'Too many resend requests. Please wait before requesting another code.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const registerValidation = [
   body('name')
     .trim()
@@ -50,9 +73,8 @@ const registerValidation = [
     .withMessage('Please provide a valid email address')
     .normalizeEmail(),
   body('phone')
-    .trim()
-    .notEmpty()
-    .withMessage('Phone number is required'),
+    .optional({ values: 'falsy' })
+    .trim(),
   body('password')
     .notEmpty()
     .withMessage('Password is required')
@@ -78,18 +100,44 @@ const loginValidation = [
     .withMessage('Password is required'),
 ];
 
+const verifyEmailValidation = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+  body('code')
+    .trim()
+    .notEmpty()
+    .withMessage('Verification code is required')
+    .matches(/^\d{6}$/)
+    .withMessage('Verification code must be exactly 6 digits'),
+];
+
+const resendValidation = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+];
+
 const refreshTokenValidation = [
   body('refreshToken')
     .notEmpty()
     .withMessage('Refresh token is required'),
 ];
 
-// Routes
 router.post('/register', authLimiter, registerValidation, validateRequest, register);
+router.post('/verify-email', verificationLimiter, verifyEmailValidation, validateRequest, verifyEmail);
+router.post('/resend-verification', resendLimiter, resendValidation, validateRequest, resendVerificationCode);
 router.post('/login', authLimiter, loginValidation, validateRequest, login);
 router.post('/refresh-token', refreshTokenValidation, validateRequest, refreshToken);
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getCurrentUser);
 
 export default router;
-

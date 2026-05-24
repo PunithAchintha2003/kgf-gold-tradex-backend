@@ -19,6 +19,7 @@ const seedMerchant = async () => {
       existing.merchantVerified = true;
       existing.password = password;
       existing.isActive = true;
+      existing.emailVerified = true;
       await existing.save();
       console.log('✅ Merchant user updated');
     } else {
@@ -31,6 +32,7 @@ const seedMerchant = async () => {
         role: 'MERCHANT',
         merchantVerified: true,
         isActive: true,
+        emailVerified: true,
       });
       console.log('✅ Merchant user created');
     }
