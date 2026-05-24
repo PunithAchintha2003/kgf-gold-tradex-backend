@@ -5,6 +5,24 @@ import Auction from '../models/Auction.js';
 import { AppError } from '../utils/AppError.js';
 import { getIO, conversationRoom, userRoom } from '../realtime/io.js';
 
+function formatMessage(m, currentUserId) {
+  const senderId = String(m.sender?._id || m.sender);
+  const readBy = (m.readBy || []).map((id) => String(id));
+  const isOwn = senderId === String(currentUserId);
+  const otherHasRead = readBy.some((id) => id !== senderId);
+  return {
+    id: String(m._id),
+    conversationId: String(m.conversation),
+    senderId,
+    senderName: m.sender?.name || 'User',
+    text: m.text,
+    createdAt: m.createdAt,
+    isOwn,
+    readBy,
+    isRead: isOwn ? otherHasRead : readBy.includes(String(currentUserId)),
+  };
+}
+
 async function assertConversationMember(conversationId, userId) {
   const conversation = await Conversation.findById(conversationId);
   if (!conversation) {
@@ -88,26 +106,22 @@ export const getMessages = async (req, res, next) => {
       query.createdAt = { $lt: new Date(before) };
     }
 
+    const fetchLimit = limit + 1;
     const messages = await Message.find(query)
       .populate('sender', 'name')
       .sort({ createdAt: -1 })
-      .limit(limit)
+      .limit(fetchLimit)
       .lean();
 
+    const hasMore = messages.length > limit;
+    if (hasMore) messages.pop();
     messages.reverse();
 
     res.status(200).json({
       success: true,
       data: {
-        messages: messages.map((m) => ({
-          id: String(m._id),
-          conversationId: String(m.conversation),
-          senderId: String(m.sender?._id || m.sender),
-          senderName: m.sender?.name || 'User',
-          text: m.text,
-          createdAt: m.createdAt,
-          isOwn: String(m.sender?._id || m.sender) === String(req.userId),
-        })),
+        messages: messages.map((m) => formatMessage(m, req.userId)),
+        hasMore,
       },
     });
   } catch (error) {
@@ -150,13 +164,20 @@ export const sendMessage = async (req, res, next) => {
     await conversation.save();
 
     const sender = await User.findById(userId).select('name').lean();
+    const populated = {
+      ...message.toObject(),
+      sender: { _id: userId, name: sender?.name || 'User' },
+    };
+    const formatted = formatMessage(populated, userId);
     const payload = {
-      id: String(message._id),
-      conversationId: String(conversation._id),
-      senderId: String(userId),
-      senderName: sender?.name || 'User',
-      text: trimmed,
-      createdAt: message.createdAt,
+      id: formatted.id,
+      conversationId: formatted.conversationId,
+      senderId: formatted.senderId,
+      senderName: formatted.senderName,
+      text: formatted.text,
+      createdAt: formatted.createdAt,
+      readBy: formatted.readBy,
+      isRead: formatted.isRead,
     };
 
     const io = getIO();
@@ -169,7 +190,7 @@ export const sendMessage = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      data: { message: { ...payload, isOwn: true } },
+      data: { message: { ...formatted, isOwn: true } },
     });
   } catch (error) {
     next(error);
@@ -186,6 +207,15 @@ export const markConversationRead = async (req, res, next) => {
     unread.set(String(userId), 0);
     conversation.unread = unread;
     await conversation.save();
+
+    await Message.updateMany(
+      {
+        conversation: conversation._id,
+        sender: { $ne: userId },
+        readBy: { $nin: [userId] },
+      },
+      { $addToSet: { readBy: userId } }
+    );
 
     const io = getIO();
     if (io) {

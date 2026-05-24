@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { body, param, query } from 'express-validator';
 import { authenticate } from '../../middleware/auth.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
@@ -10,6 +11,14 @@ import {
 } from '../../controllers/chat.controller.js';
 
 const router = express.Router();
+
+const chatMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many messages. Please wait a moment.' },
+});
 
 router.use(authenticate);
 
@@ -26,6 +35,7 @@ router.get(
 );
 router.post(
   '/conversations/:id/messages',
+  chatMessageLimiter,
   convId,
   body('text').trim().notEmpty().isLength({ max: 2000 }),
   validateRequest,
