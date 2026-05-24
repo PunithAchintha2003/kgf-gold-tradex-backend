@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Auction from '../models/Auction.js';
 import { AppError } from '../utils/AppError.js';
 import { getIO, conversationRoom, userRoom } from '../realtime/io.js';
+import { buildNotification, notifyUser } from '../realtime/notify.js';
 
 function formatMessage(m, currentUserId) {
   const senderId = String(m.sender?._id || m.sender);
@@ -186,6 +187,20 @@ export const sendMessage = async (req, res, next) => {
       for (const pid of conversation.participants) {
         io.to(userRoom(String(pid))).emit('chat:message', payload);
       }
+    }
+
+    for (const pid of conversation.participants) {
+      if (String(pid) === String(userId)) continue;
+      notifyUser(
+        pid,
+        buildNotification({
+          type: 'chat_message',
+          title: `Message from ${sender?.name || 'User'}`,
+          message: trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed,
+          severity: 'info',
+          data: { conversationId: String(conversation._id) },
+        })
+      );
     }
 
     res.status(201).json({

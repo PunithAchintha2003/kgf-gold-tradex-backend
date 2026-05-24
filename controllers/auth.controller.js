@@ -6,6 +6,7 @@ import {
   verifyRefreshToken,
 } from '../utils/generateTokens.js';
 import { sendVerificationEmail, sendLoginOtpEmail, sendPasswordResetEmail, isEmailConfigured } from '../services/emailService.js';
+import { buildNotification, notifyAdmin } from '../realtime/notify.js';
 
 const formatUser = (user) => ({
   id: user._id,
@@ -154,6 +155,17 @@ export const register = async (req, res, next) => {
 
     await sendUserVerificationCode(user);
 
+    notifyAdmin(
+      buildNotification({
+        type: 'user_registered',
+        title: 'New registration',
+        message: `${user.name} (${user.email}) signed up and needs email verification.`,
+        severity: 'info',
+        link: '/users',
+        data: { userId: String(user._id), email: user.email },
+      })
+    );
+
     res.status(201).json({
       success: true,
       message: 'Account created. Please verify your email to continue.',
@@ -213,6 +225,17 @@ export const verifyEmail = async (req, res, next) => {
     }
 
     const tokens = await issueAuthTokens(user, res);
+
+    notifyAdmin(
+      buildNotification({
+        type: 'user_verified',
+        title: 'Email verified',
+        message: `${user.name} (${user.email}) verified their email and can now sign in.`,
+        severity: 'success',
+        link: '/users',
+        data: { userId: String(user._id), email: user.email },
+      })
+    );
 
     res.status(200).json({
       success: true,

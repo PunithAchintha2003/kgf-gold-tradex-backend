@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
+import { buildNotification, notifyAdmin } from '../realtime/notify.js';
 
 /**
  * Get all users (with pagination)
@@ -86,7 +87,19 @@ export const createUser = async (req, res, next) => {
       role: effectiveRole,
       merchantVerified: mv,
       isActive: Boolean(isActive),
+      emailVerified: true,
     });
+
+    notifyAdmin(
+      buildNotification({
+        type: 'user_created',
+        title: effectiveRole === 'MERCHANT' ? 'New merchant account' : 'New user account',
+        message: `${user.name} (${user.email}) was created by an administrator.`,
+        severity: effectiveRole === 'MERCHANT' ? 'success' : 'info',
+        link: effectiveRole === 'MERCHANT' ? '/merchants' : '/users',
+        data: { userId: String(user._id), role: user.role },
+      })
+    );
 
     res.status(201).json({
       success: true,
@@ -169,7 +182,6 @@ export const updateUser = async (req, res, next) => {
       return next(new AppError('You cannot deactivate your own account', 400));
     }
 
-    // Super admins can only change role, isActive, and merchant verification flags
     if (req.body.name !== undefined) {
       return next(new AppError('Super admins cannot change user name', 403));
     }
@@ -183,7 +195,6 @@ export const updateUser = async (req, res, next) => {
       return next(new AppError('Super admins cannot change user email', 403));
     }
 
-    // Only SUPER_ADMIN can change isActive status
     if (isActive !== undefined && req.user.role !== 'SUPER_ADMIN') {
       return next(new AppError('Only super admins can activate/deactivate users', 403));
     }
@@ -210,7 +221,20 @@ export const updateUser = async (req, res, next) => {
       user.merchantVerified = Boolean(merchantVerified);
     }
 
-    await user.save();
+    try {
+      await user.save();
+    } catch (saveError) {
+      if (saveError?.code === 11000) {
+        return next(new AppError('Email is already in use', 400));
+      }
+      if (saveError?.name === 'ValidationError') {
+        const message = Object.values(saveError.errors || {})
+          .map((e) => e.message)
+          .join(' ');
+        return next(new AppError(message || 'Validation failed', 400));
+      }
+      throw saveError;
+    }
 
     res.status(200).json({
       success: true,

@@ -20,3 +20,7 @@ export function conversationRoom(conversationId) {
 export function userRoom(userId) {
   return `user:${userId}`;
 }
+
+export function adminRoom() {
+  return 'admin:super';
+}
