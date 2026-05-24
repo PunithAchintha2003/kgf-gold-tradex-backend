@@ -34,8 +34,8 @@ const userSchema = new mongoose.Schema(
     },
     address: {
       type: String,
-      required: [true, 'Address is required'],
       trim: true,
+      default: '',
     },
     refreshToken: {
       type: String,
