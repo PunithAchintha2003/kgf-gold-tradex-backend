@@ -31,6 +31,7 @@ export const listPublicAuctions = async (req, res, next) => {
     const skip = (page - 1) * limit;
     const category = resolveCategoryFilter(req.query.category);
     const endingSoon = req.query.endingSoon === 'true';
+    const sortLatest = req.query.sort === 'latest';
 
     const query = { status: { $in: ['active', 'ended'] } };
     if (category) {
@@ -42,10 +43,15 @@ export const listPublicAuctions = async (req, res, next) => {
       query.endsAt = { $lte: twoHoursFromNow, $gt: new Date() };
     }
 
+    let sortOption = { status: 1, endsAt: 1 };
+    if (sortLatest) {
+      sortOption = { createdAt: -1 };
+    }
+
     const [auctions, total] = await Promise.all([
       Auction.find(query)
         .populate('merchant', 'name merchantVerified')
-        .sort({ status: 1, endsAt: 1 })
+        .sort(sortOption)
         .skip(skip)
         .limit(limit)
         .lean(),
