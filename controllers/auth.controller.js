@@ -26,7 +26,7 @@ export const register = async (req, res, next) => {
       email: email.toLowerCase(),
       phone,
       password,
-      address,
+      address: address?.trim() || '',
     });
 
     // Generate tokens
