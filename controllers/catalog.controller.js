@@ -49,10 +49,16 @@ export const getPublishedProducts = async (req, res, next) => {
       Product.countDocuments(query),
     ]);
 
+    const reviewMap = await reviewSummariesForProducts(products.map((p) => p._id));
+    const productsWithReviews = products.map((p) => ({
+      ...p,
+      reviewSummary: reviewMap[String(p._id)] || { count: 0, avgRating: null },
+    }));
+
     res.status(200).json({
       success: true,
       data: {
-        products,
+        products: productsWithReviews,
         pagination: {
           page,
           limit,
@@ -66,6 +72,16 @@ export const getPublishedProducts = async (req, res, next) => {
   }
 };
 
+function formatReviewSummaryRow(row) {
+  if (!row) {
+    return { count: 0, avgRating: null };
+  }
+  return {
+    count: row.count,
+    avgRating: Math.round(row.avgRating * 10) / 10,
+  };
+}
+
 async function reviewSummaryForProduct(productId) {
   const agg = await ProductReview.aggregate([
     { $match: { product: new mongoose.Types.ObjectId(productId) } },
@@ -77,13 +93,28 @@ async function reviewSummaryForProduct(productId) {
       },
     },
   ]);
-  if (!agg.length) {
-    return { count: 0, avgRating: null };
+  return formatReviewSummaryRow(agg[0]);
+}
+
+/** Batch review summaries for storefront product cards. */
+async function reviewSummariesForProducts(productIds) {
+  if (!productIds.length) return {};
+  const objectIds = productIds.map((id) => new mongoose.Types.ObjectId(id));
+  const agg = await ProductReview.aggregate([
+    { $match: { product: { $in: objectIds } } },
+    {
+      $group: {
+        _id: '$product',
+        count: { $sum: 1 },
+        avgRating: { $avg: '$rating' },
+      },
+    },
+  ]);
+  const map = {};
+  for (const row of agg) {
+    map[String(row._id)] = formatReviewSummaryRow(row);
   }
-  return {
-    count: agg[0].count,
-    avgRating: Math.round(agg[0].avgRating * 10) / 10,
-  };
+  return map;
 }
 
 /**
