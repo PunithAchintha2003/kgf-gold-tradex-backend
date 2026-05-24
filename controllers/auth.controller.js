@@ -5,7 +5,7 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '../utils/generateTokens.js';
-import { sendVerificationEmail, isEmailConfigured } from '../services/emailService.js';
+import { sendVerificationEmail, sendLoginOtpEmail, sendPasswordResetEmail, isEmailConfigured } from '../services/emailService.js';
 
 const formatUser = (user) => ({
   id: user._id,
@@ -58,6 +58,63 @@ const sendUserVerificationCode = async (user) => {
     await user.save({ validateBeforeSave: true });
     throw new AppError('Failed to send verification email. Please try again later.', 503);
   }
+};
+
+const OTP_ERROR_MESSAGES = {
+  expired: 'Verification code has expired. Request a new code.',
+  max_attempts: 'Too many failed attempts. Request a new verification code.',
+  invalid: 'Invalid verification code. Please try again.',
+  no_code: 'No active verification code. Request a new code.',
+};
+
+const LOGIN_SELECT =
+  '+password +loginOtpHash +loginOtpExpires +loginOtpAttempts +loginSessionTokenHash +loginSessionExpires';
+
+const PASSWORD_RESET_SELECT =
+  '+password +passwordResetOtpHash +passwordResetOtpExpires +passwordResetOtpAttempts +passwordResetSessionTokenHash +passwordResetSessionExpires +passwordResetOtpVerified';
+
+const sendLoginOtp = async (user) => {
+  if (!isEmailConfigured()) {
+    throw new AppError('Email service is not configured. Please contact support.', 503);
+  }
+
+  const { code, loginSessionToken } = await user.issueLoginChallenge();
+
+  try {
+    await sendLoginOtpEmail({
+      to: user.email,
+      name: user.name,
+      code,
+    });
+  } catch (error) {
+    user.clearLoginChallenge();
+    await user.save({ validateBeforeSave: true });
+    throw new AppError('Failed to send verification email. Please try again later.', 503);
+  }
+
+  return loginSessionToken;
+};
+
+const sendPasswordResetOtp = async (user) => {
+  if (!isEmailConfigured()) {
+    throw new AppError('Email service is not configured. Please contact support.', 503);
+  }
+
+  const { code, resetSessionToken } = await user.issuePasswordResetChallenge();
+
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      code,
+    });
+  } catch (error) {
+    user.clearPasswordResetChallenge();
+    await user.save({ validateBeforeSave: true });
+    throw new AppError('Failed to send verification email. Please try again later.', 503);
+  }
+
+  return resetSessionToken;
 };
 
 /**
@@ -206,13 +263,14 @@ export const resendVerificationCode = async (req, res, next) => {
 };
 
 /**
- * Login user
+ * Login user — validates credentials; customer accounts receive an email OTP before tokens are issued
  */
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = email.toLowerCase();
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: normalizedEmail }).select(LOGIN_SELECT);
 
     if (!user) {
       return next(new AppError('Invalid email or password', 401));
@@ -229,13 +287,80 @@ export const login = async (req, res, next) => {
     }
 
     if (user.emailVerified === false) {
-      return next(
-        new AppError(
-          'Please verify your email before signing in. Check your inbox for the 6-digit code.',
-          403,
-          'EMAIL_NOT_VERIFIED'
-        )
-      );
+      await sendUserVerificationCode(user);
+      return res.status(200).json({
+        success: true,
+        message: 'Please verify your email to continue. Check your inbox for the 6-digit code.',
+        data: {
+          requiresEmailVerification: true,
+          email: user.email,
+        },
+      });
+    }
+
+    // Merchants and admins sign in directly without OTP
+    if (user.role !== 'USER') {
+      const tokens = await issueAuthTokens(user, res);
+      user.lastLogin = new Date();
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          user: formatUser(user),
+          ...tokens,
+        },
+      });
+    }
+
+    const loginSessionToken = await sendLoginOtp(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent. Please check your email.',
+      data: {
+        requiresLoginOtp: true,
+        email: user.email,
+        loginSessionToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify login OTP and complete sign-in
+ */
+export const verifyLogin = async (req, res, next) => {
+  try {
+    const { email, code, loginSessionToken } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(LOGIN_SELECT);
+
+    if (!user) {
+      return next(new AppError('Invalid verification request', 400));
+    }
+
+    if (!user.isActive) {
+      return next(new AppError('Your account has been deactivated', 403));
+    }
+
+    if (user.emailVerified === false) {
+      return next(new AppError('Please verify your email before signing in', 403, 'EMAIL_NOT_VERIFIED'));
+    }
+
+    const sessionValid = await user.verifyLoginSessionToken(loginSessionToken);
+    if (!sessionValid) {
+      return next(new AppError('Sign-in session expired. Please sign in again.', 400, 'LOGIN_SESSION_EXPIRED'));
+    }
+
+    const result = await user.verifyLoginOtp(code);
+
+    if (!result.ok) {
+      return next(new AppError(OTP_ERROR_MESSAGES[result.reason] || 'Verification failed', 400));
     }
 
     const tokens = await issueAuthTokens(user, res);
@@ -248,6 +373,43 @@ export const login = async (req, res, next) => {
       data: {
         user: formatUser(user),
         ...tokens,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Resend login OTP for an active sign-in session
+ */
+export const resendLoginCode = async (req, res, next) => {
+  try {
+    const { email, loginSessionToken } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(LOGIN_SELECT);
+
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists for this email, a verification code has been sent.',
+      });
+    }
+
+    const sessionValid = await user.verifyLoginSessionToken(loginSessionToken);
+    if (!sessionValid) {
+      return next(new AppError('Sign-in session expired. Please sign in again.', 400, 'LOGIN_SESSION_EXPIRED'));
+    }
+
+    const newSessionToken = await sendLoginOtp(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent. Please check your email.',
+      data: {
+        email: user.email,
+        loginSessionToken: newSessionToken,
       },
     });
   } catch (error) {
@@ -352,6 +514,158 @@ export const getCurrentUser = async (req, res, next) => {
           updatedAt: user.updatedAt,
         },
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Request password reset — sends OTP to email
+ */
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(PASSWORD_RESET_SELECT);
+
+    if (user && user.isActive) {
+      const resetSessionToken = await sendPasswordResetOtp(user);
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists for this email, a verification code has been sent.',
+        data: {
+          email: user.email,
+          resetSessionToken,
+        },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists for this email, a verification code has been sent.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify password reset OTP
+ */
+export const verifyForgotPasswordCode = async (req, res, next) => {
+  try {
+    const { email, code, resetSessionToken } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(PASSWORD_RESET_SELECT);
+
+    if (!user) {
+      return next(new AppError('Invalid verification request', 400));
+    }
+
+    const sessionValid = await user.verifyPasswordResetSessionToken(resetSessionToken);
+    if (!sessionValid) {
+      return next(new AppError('Password reset session expired. Please start again.', 400, 'RESET_SESSION_EXPIRED'));
+    }
+
+    const result = await user.verifyPasswordResetOtp(code);
+
+    if (!result.ok) {
+      return next(new AppError(OTP_ERROR_MESSAGES[result.reason] || 'Verification failed', 400));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Code verified. You can now set a new password.',
+      data: {
+        email: user.email,
+        resetSessionToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Resend password reset OTP
+ */
+export const resendForgotPasswordCode = async (req, res, next) => {
+  try {
+    const { email, resetSessionToken } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(PASSWORD_RESET_SELECT);
+
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists for this email, a verification code has been sent.',
+      });
+    }
+
+    const sessionValid = await user.verifyPasswordResetSessionToken(resetSessionToken);
+    if (!sessionValid) {
+      return next(new AppError('Password reset session expired. Please start again.', 400, 'RESET_SESSION_EXPIRED'));
+    }
+
+    const newSessionToken = await sendPasswordResetOtp(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent. Please check your email.',
+      data: {
+        email: user.email,
+        resetSessionToken: newSessionToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Set new password after OTP verification
+ */
+export const resetForgottenPassword = async (req, res, next) => {
+  try {
+    const { email, newPassword, resetSessionToken } = req.body;
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await User.findOne({ email: normalizedEmail }).select(PASSWORD_RESET_SELECT);
+
+    if (!user) {
+      return next(new AppError('Invalid password reset request', 400));
+    }
+
+    if (!user.isActive) {
+      return next(new AppError('Your account has been deactivated', 403));
+    }
+
+    const sessionValid = await user.verifyPasswordResetSessionToken(resetSessionToken);
+    if (!sessionValid) {
+      return next(new AppError('Password reset session expired. Please start again.', 400, 'RESET_SESSION_EXPIRED'));
+    }
+
+    if (!user.passwordResetOtpVerified) {
+      return next(new AppError('Please verify the code sent to your email first.', 400));
+    }
+
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return next(new AppError('New password must be different from your current password', 400));
+    }
+
+    user.password = newPassword;
+    user.clearPasswordResetChallenge();
+    user.clearRefreshToken();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully. You can now sign in with your new password.',
     });
   } catch (error) {
     next(error);

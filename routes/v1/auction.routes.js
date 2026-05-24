@@ -14,6 +14,7 @@ const listValidation = [
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('category').optional().isString().isLength({ max: 32 }),
   query('endingSoon').optional().isIn(['true', 'false']),
+  query('sort').optional().isIn(['latest', 'ending']),
 ];
 
 const idParam = param('id').isMongoId().withMessage('Invalid auction ID');
