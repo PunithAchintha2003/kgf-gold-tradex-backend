@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Auction from '../models/Auction.js';
 import Conversation from '../models/Conversation.js';
-import { setIO, auctionRoom, conversationRoom, userRoom } from './io.js';
+import { setIO, auctionRoom, conversationRoom, userRoom, adminRoom } from './io.js';
 
 /** In-memory watcher counts per auction (socket id sets) */
 const auctionWatchers = new Map();
@@ -77,6 +77,9 @@ export function attachSocket(httpServer, corsOptions) {
   io.on('connection', (socket) => {
     if (socket.userId) {
       socket.join(userRoom(socket.userId));
+      if (socket.user?.role === 'SUPER_ADMIN') {
+        socket.join(adminRoom());
+      }
     }
 
     socket.on('auction:watch', async ({ auctionId }) => {

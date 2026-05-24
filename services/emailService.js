@@ -172,3 +172,160 @@ export const sendPasswordResetEmail = async ({ to, name, code }) =>
 
 export const isEmailConfigured = () =>
   Boolean(process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
+
+function formatLkr(amount) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return 'LKR 0';
+  return `LKR ${value.toLocaleString('en-LK')}`;
+}
+
+function getMerchantPortalUrl() {
+  return (
+    process.env.ADMIN_PORTAL_URL?.trim() ||
+    process.env.MERCHANT_PORTAL_URL?.trim() ||
+    'http://localhost:4001'
+  ).replace(/\/$/, '');
+}
+
+function auctionEmailShell({ title, bodyHtml }) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f5;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#E6C200 0%,#B8A000 100%);padding:28px 32px;text-align:center;">
+              <h1 style="margin:0;color:#1a1a1a;font-size:22px;font-weight:700;">KGF Gold TradeX</h1>
+              <p style="margin:8px 0 0;color:#1a1a1a;font-size:14px;opacity:0.85;">Merchant auction update</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              ${bodyHtml}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Notify merchant by email when their auction ends with a winning bidder.
+ */
+export const sendAuctionWinnerEmailToMerchant = async ({
+  to,
+  merchantName,
+  auctionTitle,
+  winningBid,
+  winnerName,
+  winnerEmail,
+  winnerPhone,
+  portalUrl,
+}) => {
+  const transport = getTransporter();
+  const loginUrl = `${portalUrl || getMerchantPortalUrl()}/login`;
+  const chatUrl = `${portalUrl || getMerchantPortalUrl()}/merchant`;
+
+  const winnerRows = [
+    `<tr><td style="padding:8px 0;color:#71717a;font-size:14px;width:140px;">Winner</td><td style="padding:8px 0;color:#1a1a1a;font-size:15px;font-weight:600;">${winnerName || 'Winning bidder'}</td></tr>`,
+    winnerEmail
+      ? `<tr><td style="padding:8px 0;color:#71717a;font-size:14px;">Winner email</td><td style="padding:8px 0;color:#1a1a1a;font-size:15px;"><a href="mailto:${winnerEmail}" style="color:#B8860B;">${winnerEmail}</a></td></tr>`
+      : '',
+    winnerPhone
+      ? `<tr><td style="padding:8px 0;color:#71717a;font-size:14px;">Winner phone</td><td style="padding:8px 0;color:#1a1a1a;font-size:15px;">${winnerPhone}</td></tr>`
+      : '',
+    `<tr><td style="padding:8px 0;color:#71717a;font-size:14px;">Winning bid</td><td style="padding:8px 0;color:#1a1a1a;font-size:15px;font-weight:700;">${formatLkr(winningBid)}</td></tr>`,
+  ].join('');
+
+  const html = auctionEmailShell({
+    title: 'Your auction has a winner',
+    bodyHtml: `
+      <p style="margin:0 0 16px;color:#1a1a1a;font-size:16px;line-height:1.5;">Hello ${merchantName || 'Merchant'},</p>
+      <p style="margin:0 0 20px;color:#52525b;font-size:15px;line-height:1.6;">
+        Your auction <strong>${auctionTitle}</strong> has ended. Below are the winner details so you can arrange payment and delivery.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;background:#fafafa;border-radius:8px;padding:16px 20px;">
+        ${winnerRows}
+      </table>
+      <p style="margin:0 0 16px;color:#52525b;font-size:15px;line-height:1.6;">
+        A winner chat is available in the merchant portal. Sign in to message the buyer directly.
+      </p>
+      <p style="margin:0 0 24px;text-align:center;">
+        <a href="${chatUrl}" style="display:inline-block;background:linear-gradient(135deg,#E6C200,#B8A000);color:#1a1a1a;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">Open merchant portal</a>
+      </p>
+      <p style="margin:0;color:#a1a1aa;font-size:13px;line-height:1.5;">
+        Sign in at <a href="${loginUrl}" style="color:#B8860B;">${loginUrl}</a> if you are not already logged in.
+      </p>
+    `,
+  });
+
+  const text = [
+    `Hello ${merchantName || 'Merchant'},`,
+    ``,
+    `Your auction "${auctionTitle}" has ended.`,
+    `Winner: ${winnerName || 'Winning bidder'}`,
+    winnerEmail ? `Winner email: ${winnerEmail}` : null,
+    winnerPhone ? `Winner phone: ${winnerPhone}` : null,
+    `Winning bid: ${formatLkr(winningBid)}`,
+    ``,
+    `Open the merchant portal to chat with the winner: ${chatUrl}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await transport.sendMail({
+    from: getFromAddress(),
+    to,
+    subject: `Auction ended — winner for "${auctionTitle}"`,
+    text,
+    html,
+  });
+};
+
+/**
+ * Notify merchant by email when their auction ends without any bids.
+ */
+export const sendAuctionEndedNoBidsEmailToMerchant = async ({
+  to,
+  merchantName,
+  auctionTitle,
+  portalUrl,
+}) => {
+  const transport = getTransporter();
+  const managementUrl = `${portalUrl || getMerchantPortalUrl()}/merchant/auctions/management`;
+
+  const html = auctionEmailShell({
+    title: 'Your auction has ended',
+    bodyHtml: `
+      <p style="margin:0 0 16px;color:#1a1a1a;font-size:16px;line-height:1.5;">Hello ${merchantName || 'Merchant'},</p>
+      <p style="margin:0 0 24px;color:#52525b;font-size:15px;line-height:1.6;">
+        Your auction <strong>${auctionTitle}</strong> has ended. There were no bids on this listing.
+        You can review it or create a new auction from your dashboard.
+      </p>
+      <p style="margin:0;text-align:center;">
+        <a href="${managementUrl}" style="display:inline-block;background:linear-gradient(135deg,#E6C200,#B8A000);color:#1a1a1a;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:8px;">View auction management</a>
+      </p>
+    `,
+  });
+
+  const text = `Hello ${merchantName || 'Merchant'},\n\nYour auction "${auctionTitle}" has ended with no bids.\n\nView auctions: ${managementUrl}`;
+
+  await transport.sendMail({
+    from: getFromAddress(),
+    to,
+    subject: `Auction ended — no bids on "${auctionTitle}"`,
+    text,
+    html,
+  });
+};

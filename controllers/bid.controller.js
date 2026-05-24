@@ -7,6 +7,7 @@ import {
   computeNextMinimum,
 } from '../utils/auctionHelpers.js';
 import { getIO, auctionRoom } from '../realtime/io.js';
+import { buildNotification, notifyUser } from '../realtime/notify.js';
 
 /**
  * Place a bid on an active auction
@@ -90,6 +91,18 @@ export const placeBid = async (req, res, next) => {
         });
       }
     }
+
+    notifyUser(
+      auction.merchant,
+      buildNotification({
+        type: 'auction_bid',
+        title: 'New auction bid',
+        message: `${bidder?.name || 'A bidder'} placed LKR ${amount.toLocaleString()} on "${auction.title}".`,
+        severity: 'info',
+        link: '/merchant/auctions/management',
+        data: { auctionId: String(auction._id), amount },
+      })
+    );
 
     res.status(201).json({
       success: true,
