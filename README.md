@@ -130,6 +130,14 @@ The server listens on `PORT` (default **5001**). If that port is busy, the proce
 | `CLOUDINARY_CLOUD_NAME` | For uploads† | Cloud name (if not using URL) | — |
 | `CLOUDINARY_API_KEY` | For uploads† | API key | — |
 | `CLOUDINARY_API_SECRET` | For uploads† | API secret | — |
+| `SMTP_HOST` | For email verification | SMTP host (Gmail: `smtp.gmail.com`) | `smtp.gmail.com` |
+| `SMTP_PORT` | No | SMTP port | `587` |
+| `SMTP_USER` | For email verification | Sender Gmail address | — |
+| `SMTP_PASS` | For email verification | Gmail App Password (not account password) | — |
+| `SMTP_FROM_NAME` | No | Display name in outgoing mail | `KGF Gold TradeX` |
+| `EMAIL_VERIFICATION_EXPIRY_MINUTES` | No | OTP validity | `15` |
+| `EMAIL_VERIFICATION_MAX_ATTEMPTS` | No | Max wrong OTP tries per code | `5` |
+| `EMAIL_RESEND_RATE_LIMIT` | No | Max resend requests per 15 min | `3` |
 
 \*Required in production; a local default exists for development.  
 †Either `CLOUDINARY_URL` or the three `CLOUDINARY_*` fields.

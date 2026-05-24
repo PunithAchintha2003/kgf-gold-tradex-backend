@@ -20,6 +20,7 @@ const seedAdmin = async () => {
       existingAdmin.role = 'SUPER_ADMIN';
       existingAdmin.password = '1234admin@';
       existingAdmin.isActive = true;
+      existingAdmin.emailVerified = true;
       await existingAdmin.save();
       console.log('✅ Super admin updated successfully');
       console.log('📧 Email: admin@gmail.com');
@@ -34,6 +35,7 @@ const seedAdmin = async () => {
         address: 'Admin Address',
         role: 'SUPER_ADMIN',
         isActive: true,
+        emailVerified: true,
       });
 
       console.log('✅ Super admin created successfully');
