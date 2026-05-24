@@ -286,7 +286,7 @@ export const resendVerificationCode = async (req, res, next) => {
 };
 
 /**
- * Login user — validates credentials; customer accounts receive an email OTP before tokens are issued
+ * Login user — validates credentials; sends email OTP before tokens are issued
  */
 export const login = async (req, res, next) => {
   try {
@@ -317,22 +317,6 @@ export const login = async (req, res, next) => {
         data: {
           requiresEmailVerification: true,
           email: user.email,
-        },
-      });
-    }
-
-    // Merchants and admins sign in directly without OTP
-    if (user.role !== 'USER') {
-      const tokens = await issueAuthTokens(user, res);
-      user.lastLogin = new Date();
-      await user.save();
-
-      return res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        data: {
-          user: formatUser(user),
-          ...tokens,
         },
       });
     }

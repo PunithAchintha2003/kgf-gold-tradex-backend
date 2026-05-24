@@ -1,6 +1,7 @@
 import Product from '../models/Product.js';
 import User from '../models/User.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
+import Auction from '../models/Auction.js';
 import { AppError } from '../utils/AppError.js';
 import { uploadImageBuffer, isCloudinaryConfigured } from '../utils/cloudinaryUpload.js';
 import { DEFAULT_PRODUCT_CATEGORY, PRODUCT_CATEGORIES } from '../constants/productCategories.js';
@@ -39,6 +40,33 @@ const assertCanPublish = async (userId, wantsPublished) => {
   }
 };
 
+/** Start of local calendar day / month for income period filters */
+function startOfLocalDay() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfLocalMonth() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+const lineIncomeExpr = { $multiply: ['$items.unitPriceLkr', '$items.quantity'] };
+
+const roundLkr = (n) => Math.round((n ?? 0) * 100) / 100;
+
+const countDistinctIds = (ids) => (ids ?? []).filter((id) => id != null).length;
+
+/** Ended auctions with a winning bidder — income is the winning bid (currentBid). */
+const wonAuctionMatch = (merchantId) => ({
+  merchant: merchantId,
+  status: 'ended',
+  winner: { $ne: null },
+});
+
 /**
  * Merchant dashboard summary
  */
@@ -50,7 +78,10 @@ export const getMerchantDashboardStats = async (req, res, next) => {
       return next(new AppError('User not found', 404));
     }
 
-    const [totalProducts, publishedProducts, draftProducts, stockAgg, orderStats] = await Promise.all([
+    const startToday = startOfLocalDay();
+    const startMonth = startOfLocalMonth();
+
+    const [totalProducts, publishedProducts, draftProducts, stockAgg, orderStats, auctionStats] = await Promise.all([
       Product.countDocuments({ merchant: merchantId }),
       Product.countDocuments({ merchant: merchantId, isPublished: true }),
       Product.countDocuments({ merchant: merchantId, isPublished: false }),
@@ -59,22 +90,108 @@ export const getMerchantDashboardStats = async (req, res, next) => {
         { $group: { _id: null, units: { $sum: '$stock' } } },
       ]),
       PurchaseOrder.aggregate([
-        { $match: { 'items.merchant': user._id } },
+        { $match: { 'items.merchant': user._id, paymentStatus: 'paid' } },
         { $unwind: '$items' },
-        { $match: { 'items.merchant': user._id } },
+        {
+          $match: {
+            'items.merchant': user._id,
+            'items.deliveryStatus': { $ne: 'cancelled' },
+          },
+        },
         {
           $group: {
             _id: null,
-            totalIncome: { $sum: { $multiply: ['$items.unitPriceLkr', '$items.quantity'] } },
+            totalIncome: { $sum: lineIncomeExpr },
+            incomeToday: {
+              $sum: {
+                $cond: [{ $gte: ['$createdAt', startToday] }, lineIncomeExpr, 0],
+              },
+            },
+            incomeThisMonth: {
+              $sum: {
+                $cond: [{ $gte: ['$createdAt', startMonth] }, lineIncomeExpr, 0],
+              },
+            },
             orderIds: { $addToSet: '$_id' },
+            ordersToday: {
+              $addToSet: {
+                $cond: [{ $gte: ['$createdAt', startToday] }, '$_id', null],
+              },
+            },
+            ordersThisMonth: {
+              $addToSet: {
+                $cond: [{ $gte: ['$createdAt', startMonth] }, '$_id', null],
+              },
+            },
+            lastOrderAt: { $max: '$createdAt' },
+          },
+        },
+      ]),
+      Auction.aggregate([
+        { $match: wonAuctionMatch(user._id) },
+        {
+          $group: {
+            _id: null,
+            totalIncome: { $sum: '$currentBid' },
+            incomeToday: {
+              $sum: {
+                $cond: [{ $gte: ['$updatedAt', startToday] }, '$currentBid', 0],
+              },
+            },
+            incomeThisMonth: {
+              $sum: {
+                $cond: [{ $gte: ['$updatedAt', startMonth] }, '$currentBid', 0],
+              },
+            },
+            auctionIds: { $addToSet: '$_id' },
+            auctionsToday: {
+              $addToSet: {
+                $cond: [{ $gte: ['$updatedAt', startToday] }, '$_id', null],
+              },
+            },
+            auctionsThisMonth: {
+              $addToSet: {
+                $cond: [{ $gte: ['$updatedAt', startMonth] }, '$_id', null],
+              },
+            },
+            lastAuctionAt: { $max: '$updatedAt' },
           },
         },
       ]),
     ]);
 
     const inventoryUnits = stockAgg[0]?.units ?? 0;
-    const totalIncomeLkr = orderStats[0]?.totalIncome ?? 0;
-    const totalOrderCount = orderStats[0]?.orderIds?.length ?? 0;
+    const shop = orderStats[0] ?? {};
+    const auctions = auctionStats[0] ?? {};
+
+    const shopIncome = {
+      total: roundLkr(shop.totalIncome),
+      today: roundLkr(shop.incomeToday),
+      thisMonth: roundLkr(shop.incomeThisMonth),
+      orderCount: countDistinctIds(shop.orderIds),
+      ordersToday: countDistinctIds(shop.ordersToday),
+      ordersThisMonth: countDistinctIds(shop.ordersThisMonth),
+      lastAt: shop.lastOrderAt ? shop.lastOrderAt.toISOString() : null,
+    };
+
+    const auctionIncome = {
+      total: roundLkr(auctions.totalIncome),
+      today: roundLkr(auctions.incomeToday),
+      thisMonth: roundLkr(auctions.incomeThisMonth),
+      wonCount: countDistinctIds(auctions.auctionIds),
+      wonToday: countDistinctIds(auctions.auctionsToday),
+      wonThisMonth: countDistinctIds(auctions.auctionsThisMonth),
+      lastAt: auctions.lastAuctionAt ? auctions.lastAuctionAt.toISOString() : null,
+    };
+
+    const totalIncomeLkr = roundLkr(shopIncome.total + auctionIncome.total);
+    const incomeTodayLkr = roundLkr(shopIncome.today + auctionIncome.today);
+    const incomeThisMonthLkr = roundLkr(shopIncome.thisMonth + auctionIncome.thisMonth);
+
+    const lastActivityAt = [shopIncome.lastAt, auctionIncome.lastAt]
+      .filter(Boolean)
+      .sort()
+      .pop() ?? null;
 
     res.status(200).json({
       success: true,
@@ -86,7 +203,15 @@ export const getMerchantDashboardStats = async (req, res, next) => {
           draftProducts,
           inventoryUnits,
           totalIncomeLkr,
-          totalOrderCount,
+          incomeTodayLkr,
+          incomeThisMonthLkr,
+          totalOrderCount: shopIncome.orderCount,
+          ordersToday: shopIncome.ordersToday,
+          ordersThisMonth: shopIncome.ordersThisMonth,
+          lastOrderAt: shopIncome.lastAt,
+          shopIncome,
+          auctionIncome,
+          lastActivityAt,
         },
       },
     });
