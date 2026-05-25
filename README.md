@@ -1,6 +1,8 @@
-# 🥇 KGF Gold TradeX — Backend API
+# 🥇 KGF Gold TradeX — Backend
 
-REST API for the **KGF Gold TradeX** platform: user authentication, product catalog, Stripe checkout, merchant product management, and admin operations. Built with Node.js, Express, and MongoDB.
+> REST API for the **KGF Gold TradeX** platform — authentication, catalog, checkout, auctions, merchant operations, admin tooling, and realtime features. Built with **Node.js**, **Express**, and **MongoDB**.
+
+**Live API:** [https://kgf-gold-tradex-backend.onrender.com](https://kgf-gold-tradex-backend.onrender.com)
 
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES_Modules-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -10,73 +12,134 @@ REST API for the **KGF Gold TradeX** platform: user authentication, product cata
 [![JWT](https://img.shields.io/badge/JWT-9.0-000000?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 [![Stripe](https://img.shields.io/badge/Stripe-17.7-635BFF?logo=stripe&logoColor=white)](https://stripe.com/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-2.10-3448C5?logo=cloudinary&logoColor=white)](https://cloudinary.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?logo=socket.io&logoColor=white)](https://socket.io/)
 [![Helmet](https://img.shields.io/badge/Helmet-7.1-000000?logo=helmet&logoColor=white)](https://helmetjs.github.io/)
 [![express-validator](https://img.shields.io/badge/express--validator-7.0-000000)](https://express-validator.github.io/)
-[![API](https://img.shields.io/badge/API-v1-0EA5E9)](http://localhost:5001/api/v1/health)
+[![API](https://img.shields.io/badge/API-v1-0EA5E9)](https://kgf-gold-tradex-backend.onrender.com/api/v1/health)
+[![Live](https://img.shields.io/badge/Live-Render-46E3B7)](https://kgf-gold-tradex-backend.onrender.com)
 [![License](https://img.shields.io/badge/License-ISC-blue)](LICENSE)
 
 ## 📑 Table of contents
 
+- [About](#about)
+- [Live deployment](#live-deployment)
 - [Features](#features)
 - [Tech stack](#tech-stack)
+- [Quick start](#quick-start)
 - [Prerequisites](#prerequisites)
-- [Getting started](#getting-started)
-- [Environment variables](#environment-variables)
+- [Installation](#installation)
+- [Configuration](#configuration)
 - [Scripts](#scripts)
-- [Running the server](#running-the-server)
-- [API overview](#api-overview)
+- [Development](#development)
+- [API reference](#api-reference)
 - [Authentication](#authentication)
 - [User roles](#user-roles)
 - [Error responses](#error-responses)
+- [Realtime](#realtime)
 - [Project structure](#project-structure)
 - [Security](#security)
+- [Contributing](#contributing)
 - [License](#license)
 
-<a id="features"></a>
+## 📖 About
+
+This repository is the backend service for **KGF Gold TradeX**. It exposes a versioned REST API (`/api/v1`), integrates with **Stripe** for payments and **Cloudinary** for media, and uses **Socket.IO** for auction and notification realtime updates.
+
+| Environment | Base URL |
+|-------------|----------|
+| 🌐 **Production** | `https://kgf-gold-tradex-backend.onrender.com` |
+| 💻 **Local** | `http://localhost:5001` (default `PORT`) |
+
+All JSON responses follow a consistent `{ success, data \| error }` shape unless noted otherwise.
+
+## 🌐 Live deployment
+
+Hosted on [Render](https://render.com).
+
+| Endpoint | URL |
+|----------|-----|
+| **Base** | [https://kgf-gold-tradex-backend.onrender.com](https://kgf-gold-tradex-backend.onrender.com) |
+| **Health** | `GET /health` |
+| **API base** | `/api/v1` |
+| **API health** | `GET /api/v1/health` |
+
+```bash
+curl https://kgf-gold-tradex-backend.onrender.com/api/v1/health
+```
 
 ## ✨ Features
 
 | Area | Capabilities |
 |------|----------------|
-| 🔐 **Auth** | Registration, login, JWT access/refresh tokens, HTTP-only refresh cookies, logout, current user |
-| 👤 **Users** | Profile read/update |
+| 🔐 **Auth** | Register, email verification (OTP), login verification, password reset, JWT access/refresh, HTTP-only refresh cookies, logout |
+| 👤 **Users** | Profile read/update, credential change with OTP |
 | 🛍️ **Catalog** | Public published products (search, pagination, categories), product detail, reviews |
 | 💳 **Checkout** | Stripe cart sessions, payment verification, purchase order history |
-| 🏪 **Merchant** | Dashboard stats, orders, delivery status updates, CRUD products, Cloudinary image upload |
-| ⚙️ **Admin** | Dashboard stats, user CRUD, role and merchant verification management |
-| 🌐 **Platform** | API versioning (`/api/v1`), request validation, rate limiting, Helmet, CORS, compression, global error handling |
+| 🔨 **Auctions** | Public auction listings, bidding, merchant auction CRUD, scheduled close, winner chat handoff |
+| 💬 **Chat** | User conversations and AI-assisted support chat |
+| 🪞 **AR try-on** | Product AR config and session tracking |
+| 🏪 **Merchant** | Dashboard, orders, delivery updates, product CRUD, image upload, data backup export |
+| ⚙️ **Admin** | Dashboard, user CRUD, roles, merchant verification, platform backup export |
+| 🌐 **Platform** | API versioning, validation, rate limiting, Helmet, CORS, compression, global error handling |
+| 📡 **Realtime** | Socket.IO for live auction and notification events |
 
 📈 Spot trading routes exist as a placeholder for future work.
 
-<a id="tech-stack"></a>
-
 ## 🛠️ Tech stack
 
-- 🟢 **Runtime:** Node.js (ES modules)
-- ⚡ **Framework:** Express.js
-- 🍃 **Database:** MongoDB with Mongoose
-- 🔐 **Auth:** JSON Web Tokens (`jsonwebtoken`), `bcryptjs`
-- 💳 **Payments:** Stripe
-- 🖼️ **Media:** Cloudinary, Multer
-- ✅ **Validation:** `express-validator`
-- 🛡️ **Security / ops:** Helmet, CORS, `express-rate-limit`, Morgan, compression
+| Layer | Technology |
+|-------|------------|
+| 🟢 **Runtime** | Node.js 18+ (ES modules) |
+| ⚡ **Framework** | Express.js |
+| 🍃 **Database** | MongoDB, Mongoose |
+| 🔐 **Auth** | `jsonwebtoken`, `bcryptjs`, `cookie-parser` |
+| 💳 **Payments** | Stripe |
+| 🖼️ **Media** | Cloudinary, Multer |
+| 📧 **Email** | Nodemailer (verification OTP) |
+| 📡 **Realtime** | Socket.IO |
+| ✅ **Validation** | `express-validator` |
+| 🛡️ **Security / ops** | Helmet, CORS, `express-rate-limit`, Morgan, compression |
 
-<a id="prerequisites"></a>
+## ⚡ Quick start
+
+```bash
+git clone <repository-url>
+cd kgf-gold-tradex-backend
+npm install
+cp .env.example .env   # or create .env manually — see Configuration
+# Set MONGODB_URI and JWT_SECRET in .env
+npm run dev
+```
+
+| Check | Local URL |
+|-------|-----------|
+| 💚 Health | `http://localhost:5001/health` |
+| 🌐 API base | `http://localhost:5001/api/v1` |
+| 💚 API health | `http://localhost:5001/api/v1/health` |
+
+Optional seeds (development only):
+
+```bash
+npm run seed:admin
+npm run seed:merchant
+npm run seed:auctions
+```
 
 ## 📋 Prerequisites
 
-- **Node.js** 18+
-- **MongoDB** (local instance or [MongoDB Atlas](https://www.mongodb.com/atlas))
-- **npm** (or yarn)
-- Optional for full functionality:
-  - [Stripe](https://stripe.com) account (checkout)
-  - [Cloudinary](https://cloudinary.com) account (merchant product images)
+- **Node.js** 18 or later
+- **MongoDB** — [local](https://www.mongodb.com/try/download/community) or [MongoDB Atlas](https://www.mongodb.com/atlas)
+- **npm** (or compatible package manager)
 
-<a id="getting-started"></a>
+Optional integrations:
 
-## 🚀 Getting started
+- [Stripe](https://stripe.com) — checkout
+- [Cloudinary](https://cloudinary.com) — merchant product images
+- Gmail (or SMTP) — email verification OTP
 
-### 1️⃣ Clone and install
+## 📦 Installation
+
+### 1️⃣ Clone and install dependencies
 
 ```bash
 git clone <repository-url>
@@ -86,32 +149,57 @@ npm install
 
 ### 2️⃣ Configure environment
 
-Create a `.env` file in the project root (see [Environment variables](#environment-variables)). At minimum, set `MONGODB_URI` and `JWT_SECRET`.
+Create a `.env` file in the project root. See [Configuration](#configuration) for the full variable list.
 
-### 3️⃣ Seed local roles (optional)
+Minimum for local development:
 
-```bash
-npm run seed:admin      # SUPER_ADMIN user
-npm run seed:merchant   # MERCHANT user (see script for defaults)
+```env
+NODE_ENV=development
+PORT=5001
+MONGODB_URI=mongodb://localhost:27017/kgf-gold-tradex
+JWT_SECRET=your-long-random-secret
 ```
 
-Credentials are printed by each seed script. Use only in local development.
+### 3️⃣ Seed roles (optional)
 
-### 4️⃣ Start the API
+```bash
+npm run seed:admin      # SUPER_ADMIN
+npm run seed:merchant   # MERCHANT
+npm run seed:auctions   # Sample auctions (optional)
+```
+
+Credentials are printed by each seed script. **Use seeds only in local development.**
+
+### 4️⃣ Run the server
 
 ```bash
 npm run dev
 ```
 
-The server listens on `PORT` (default **5001**). If that port is busy, the process automatically tries the next available port.
+Default port is **5001**. If the port is in use, the process tries the next available port automatically.
 
-- 💚 Health: `GET http://localhost:5001/health`
-- 🌐 API base: `http://localhost:5001/api/v1`
-- 💚 API health: `GET http://localhost:5001/api/v1/health`
+## 🔐 Configuration
 
-<a id="environment-variables"></a>
+Copy the template below into `.env` and adjust values for your environment.
 
-## 🔐 Environment variables
+```env
+NODE_ENV=development
+PORT=5001
+MONGODB_URI=mongodb://localhost:27017/kgf-gold-tradex
+JWT_SECRET=
+JWT_ACCESS_TOKEN_EXPIRY=15m
+JWT_REFRESH_TOKEN_EXPIRY=7d
+CORS_ORIGIN=http://localhost:4000,http://localhost:5173
+STRIPE_SECRET_KEY=
+STOREFRONT_URL=http://localhost:4000
+CLOUDINARY_URL=
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+```
+
+### Environment variables
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
@@ -130,10 +218,10 @@ The server listens on `PORT` (default **5001**). If that port is busy, the proce
 | `CLOUDINARY_CLOUD_NAME` | For uploads† | Cloud name (if not using URL) | — |
 | `CLOUDINARY_API_KEY` | For uploads† | API key | — |
 | `CLOUDINARY_API_SECRET` | For uploads† | API secret | — |
-| `SMTP_HOST` | For email verification | SMTP host (Gmail: `smtp.gmail.com`) | `smtp.gmail.com` |
+| `SMTP_HOST` | For email verification | SMTP host | `smtp.gmail.com` |
 | `SMTP_PORT` | No | SMTP port | `587` |
-| `SMTP_USER` | For email verification | Sender Gmail address | — |
-| `SMTP_PASS` | For email verification | Gmail App Password (not account password) | — |
+| `SMTP_USER` | For email verification | Sender address | — |
+| `SMTP_PASS` | For email verification | App password (not account password) | — |
 | `SMTP_FROM_NAME` | No | Display name in outgoing mail | `KGF Gold TradeX` |
 | `EMAIL_VERIFICATION_EXPIRY_MINUTES` | No | OTP validity | `15` |
 | `EMAIL_VERIFICATION_MAX_ATTEMPTS` | No | Max wrong OTP tries per code | `5` |
@@ -142,7 +230,7 @@ The server listens on `PORT` (default **5001**). If that port is busy, the proce
 \*Required in production; a local default exists for development.  
 †Either `CLOUDINARY_URL` or the three `CLOUDINARY_*` fields.
 
-<a id="scripts"></a>
+> ⚠️ Never commit `.env` or secrets. Rotate `JWT_SECRET` and database credentials for production.
 
 ## 📜 Scripts
 
@@ -152,31 +240,34 @@ The server listens on `PORT` (default **5001**). If that port is busy, the proce
 | `npm start` | Start production server |
 | `npm run seed:admin` | Create or update super admin user |
 | `npm run seed:merchant` | Create or update merchant user |
+| `npm run seed:auctions` | Seed sample auction data |
 | `npm test` | Not configured yet |
 
-<a id="running-the-server"></a>
+## 💻 Development
 
-## ▶️ Running the server
-
-**Development**
+**Development mode**
 
 ```bash
 npm run dev
 ```
 
-**Production**
+**Production mode**
 
 ```bash
 NODE_ENV=production npm start
 ```
 
-In development, CORS allows any `http://localhost:*` and `http://127.0.0.1:*` origin. In other environments, only origins listed in `CORS_ORIGIN` are accepted.
+**CORS behavior**
 
-<a id="api-overview"></a>
+- In `development`, any `http://localhost:*` and `http://127.0.0.1:*` origin is allowed.
+- In other environments, only origins listed in `CORS_ORIGIN` are accepted.
 
-## 🌐 API overview
+## 🌐 API reference
 
-Base path: **`/api/v1`**
+**Base path:** `/api/v1`  
+**Auth header:** `Authorization: Bearer <accessToken>` (where marked *Yes*)
+
+Prefix all paths below with the base URL (local or production).
 
 ### 💚 Health
 
@@ -189,17 +280,30 @@ Base path: **`/api/v1`**
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
 | `POST` | `/register` | No | Rate limited |
-| `POST` | `/login` | No | Rate limited |
+| `POST` | `/verify-email` | No | Email OTP after register |
+| `POST` | `/resend-verification` | No | Resend registration OTP |
+| `POST` | `/login` | No | Rate limited; may require OTP step |
+| `POST` | `/verify-login` | No | Complete login with OTP |
+| `POST` | `/resend-login-code` | No | Resend login OTP |
+| `POST` | `/forgot-password` | No | Start password reset |
+| `POST` | `/verify-forgot-password` | No | Verify reset OTP |
+| `POST` | `/resend-forgot-password` | No | Resend reset OTP |
+| `POST` | `/reset-forgotten-password` | No | Set new password |
 | `POST` | `/refresh-token` | No | Body: `{ "refreshToken" }` |
 | `POST` | `/logout` | Yes | |
 | `GET` | `/me` | Yes | Current user |
 
 ### 👤 Users — `/users`
 
-| Method | Path | Auth |
-|--------|------|------|
-| `GET` | `/profile` | Yes |
-| `PUT` | `/profile` | Yes |
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/profile` | Yes | |
+| `PUT` | `/profile` | Yes | |
+| `POST` | `/change-email` | Yes | OTP flow |
+| `POST` | `/verify-change-email` | Yes | |
+| `POST` | `/change-password` | Yes | OTP flow |
+| `POST` | `/verify-change-password` | Yes | |
+| `POST` | `/resend-credential-otp` | Yes | Rate limited |
 
 ### 🛍️ Catalog — `/catalog` (public)
 
@@ -216,31 +320,54 @@ Product categories: `Rings`, `Necklaces`, `Earrings`, `Bracelets`, `Pendants`, `
 
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
-| `POST` | `/cart-session` | Yes | Stripe Checkout session for cart items |
+| `POST` | `/cart-session` | Yes | Stripe Checkout session |
 | `GET` | `/verify-session` | Yes | Query: `session_id` |
 | `GET` | `/orders` | Yes | User purchase orders |
 
-### 🏪 Merchant — `/merchant`
+### 🔨 Auctions — `/auctions` (public)
 
-Requires authenticated user with role `MERCHANT` and `merchantVerified: true` for publishing workflows.
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| `GET` | `/` | No | List active auctions |
+| `GET` | `/:id` | No | Auction detail |
+| `GET` | `/:id/bids` | No | Bid history |
+| `POST` | `/:id/bids` | Yes | Place bid (nested under `/auctions/:id/bids`) |
+
+### 🏪 Merchant auctions — `/merchant/auctions`
+
+Requires `MERCHANT` role and `merchantVerified: true`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/dashboard/stats` | Merchant dashboard metrics |
-| `GET` | `/orders` | Orders containing merchant line items |
-| `PATCH` | `/orders/:orderId/line-items/:lineItemId` | Update line delivery status |
-| `GET` | `/products` | List own products (`page`, `limit`, `search`) |
-| `GET` | `/products/:id` | Product detail |
+| `GET` | `/` | List own auctions |
+| `POST` | `/` | Create auction |
+| `GET` | `/:id` | Auction detail |
+| `PUT` | `/:id` | Update auction |
+| `PATCH` | `/:id/cancel` | Cancel auction |
+| `DELETE` | `/:id` | Delete auction |
+| `GET` | `/:id/bidders` | Bidder list |
+| `GET` | `/:id/winner-conversation` | Chat handoff after win |
+
+### 🏪 Merchant — `/merchant`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/dashboard/stats` | Dashboard metrics |
+| `GET` | `/orders` | Orders with merchant line items |
+| `PATCH` | `/orders/:orderId/line-items/:lineItemId` | Update delivery status |
+| `GET` | `/products` | List own products |
 | `POST` | `/products` | Create product |
+| `GET` | `/products/:id` | Product detail |
 | `PUT` | `/products/:id` | Update product |
 | `DELETE` | `/products/:id` | Delete product |
-| `POST` | `/products/images` | Upload images (multipart; optional `productId` query) |
+| `POST` | `/products/images` | Upload images (multipart) |
+| `GET` | `/backup` | Export merchant data (rate limited) |
 
 Delivery statuses: `pending`, `processing`, `shipped`, `delivered`, `cancelled`.
 
 ### ⚙️ Admin — `/admin`
 
-Requires role `SUPER_ADMIN`.
+Requires `SUPER_ADMIN` role.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -248,8 +375,34 @@ Requires role `SUPER_ADMIN`.
 | `GET` | `/users` | List users (`page`, `limit`, `search`, `role`) |
 | `GET` | `/users/:id` | User by ID |
 | `POST` | `/users` | Create user |
-| `PUT` | `/users/:id` | Update user (role, `merchantVerified`, `isActive`, …) |
+| `PUT` | `/users/:id` | Update user |
 | `DELETE` | `/users/:id` | Delete user |
+| `GET` | `/backup` | Platform data export (rate limited) |
+
+### 💬 Chat — `/chat`
+
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/conversations` | Yes |
+| `GET` | `/conversations/:id/messages` | Yes |
+| `POST` | `/conversations/:id/messages` | Yes |
+| `PATCH` | `/conversations/:id/read` | Yes |
+
+### 🤖 Support — `/support`
+
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/status` | No |
+| `POST` | `/chat` | No / session-based |
+
+### 🪞 AR try-on — `/ar-tryon`
+
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/config/:productId` | No |
+| `POST` | `/sessions` | No |
+| `PATCH` | `/sessions/:sessionId` | No |
+| `POST` | `/sessions/:sessionId/events` | No |
 
 ### 📈 Spot trading — `/spot-trade`
 
@@ -291,26 +444,21 @@ GET /api/v1/users/profile
 Authorization: Bearer <accessToken>
 ```
 
-<a id="authentication"></a>
-
 ## 🔑 Authentication
 
-- **Access token:** Returned in JSON on register/login; send as `Authorization: Bearer <token>`.
-- **Refresh token:** Stored in an HTTP-only cookie and/or request body for `/auth/refresh-token`.
-- **Expiry:** Configured via `JWT_ACCESS_TOKEN_EXPIRY` and `JWT_REFRESH_TOKEN_EXPIRY`.
-- **Auth endpoints** are rate-limited to reduce brute-force attempts.
-
-<a id="user-roles"></a>
+- **Access token** — Returned in JSON on register/login; send as `Authorization: Bearer <token>`.
+- **Refresh token** — HTTP-only cookie and/or body for `POST /auth/refresh-token`.
+- **Email OTP** — Registration, login, password reset, and credential changes use time-limited codes (see SMTP settings).
+- **Expiry** — Controlled by `JWT_ACCESS_TOKEN_EXPIRY` and `JWT_REFRESH_TOKEN_EXPIRY`.
+- **Rate limiting** — Applied on auth and sensitive OTP endpoints to reduce abuse.
 
 ## 👥 User roles
 
 | Role | Description |
 |------|-------------|
-| 👤 `USER` | Default; catalog browsing, checkout, profile |
-| 🏪 `MERCHANT` | Manage products and orders; requires `merchantVerified` to publish |
-| ⚙️ `SUPER_ADMIN` | Full user management and admin dashboard |
-
-<a id="error-responses"></a>
+| 👤 `USER` | Default; catalog, checkout, auctions, profile |
+| 🏪 `MERCHANT` | Products, orders, auctions; requires `merchantVerified` to publish |
+| ⚙️ `SUPER_ADMIN` | User management, admin dashboard, platform backup |
 
 ## ⚠️ Error responses
 
@@ -337,77 +485,59 @@ Validation failures may include field details:
 
 In `development`, stack traces may be included on server errors.
 
-<a id="project-structure"></a>
+## 📡 Realtime
+
+The HTTP server also hosts **Socket.IO** for live auction updates and notifications. Connect from the client using the same origin as the API base URL; see `realtime/socket.js` and `realtime/notify.js` for event names and payloads.
 
 ## 📁 Project structure
 
 ```
 kgf-gold-tradex-backend/
 ├── config/
-│   └── database.js           # MongoDB connection
+│   └── database.js              # MongoDB connection
 ├── constants/
-│   └── productCategories.js  # Shared product categories
-├── controllers/
-│   ├── admin.controller.js
-│   ├── auth.controller.js
-│   ├── catalog.controller.js
-│   ├── checkout.controller.js
-│   ├── merchant.controller.js
-│   └── user.controller.js
-├── middleware/
-│   ├── admin.js              # requireAdmin
-│   ├── auth.js               # authenticate (JWT)
-│   ├── errorHandler.js
-│   ├── merchant.js           # requireMerchant
-│   ├── notFound.js
-│   ├── productImageUpload.js
-│   └── validateRequest.js
-├── models/
-│   ├── PendingCheckout.js
-│   ├── Product.js
-│   ├── ProductReview.js
-│   ├── PurchaseOrder.js
-│   └── User.js
+│   └── productCategories.js
+├── controllers/                 # Route handlers
+├── middleware/                  # Auth, RBAC, validation, errors
+├── models/                      # Mongoose schemas
 ├── routes/
-│   ├── index.js              # /api → v1
-│   └── v1/
-│       ├── index.js
-│       ├── admin.routes.js
-│       ├── auth.routes.js
-│       ├── catalog.routes.js
-│       ├── checkout.routes.js
-│       ├── merchant.routes.js
-│       ├── spotTrade.routes.js
-│       └── user.routes.js
-├── scripts/
-│   ├── seedAdmin.js
-│   └── seedMerchant.js
-├── utils/
-│   ├── AppError.js
-│   ├── cloudinaryUpload.js
-│   └── generateTokens.js
-├── server.js                 # Application entry point
+│   ├── index.js                 # /api → v1
+│   └── v1/                      # Versioned REST routes
+├── realtime/
+│   ├── socket.js                # Socket.IO setup
+│   ├── io.js
+│   ├── notify.js
+│   └── auctionScheduler.js
+├── services/                    # Email, auctions, support AI
+├── scripts/                     # Seed scripts
+├── utils/                       # Shared helpers
+├── server.js                    # Application entry point
 ├── package.json
 └── README.md
 ```
 
-<a id="security"></a>
-
 ## 🛡️ Security
 
-- Passwords hashed with bcrypt
-- JWT-based authentication with refresh rotation support
-- HTTP-only, `Secure` cookies for refresh tokens in production
-- Rate limiting on authentication routes
-- Helmet security headers
-- Configurable CORS
-- Request validation and sanitization via `express-validator`
-- Role-based access control for admin and merchant routes
+- 🔒 Passwords hashed with bcrypt
+- 🎫 JWT access and refresh tokens with rotation support
+- 🍪 HTTP-only, `Secure` cookies for refresh tokens in production
+- 🚦 Rate limiting on authentication and OTP routes
+- 🪖 Helmet security headers
+- 🌍 Configurable CORS
+- ✅ Request validation via `express-validator`
+- 👮 Role-based access for admin and merchant routes
 
 Do not commit `.env` or secrets. Rotate `JWT_SECRET` and database credentials for production deployments.
 
-<a id="license"></a>
+## 🤝 Contributing
+
+1. Fork the repository and create a feature branch from `main`.
+2. Install dependencies and run `npm run dev` locally.
+3. Keep changes focused; match existing code style and patterns.
+4. Open a pull request with a clear description and test steps.
+
+Bug reports and feature requests are welcome via issues.
 
 ## 📄 License
 
-ISC
+This project is licensed under the **ISC** License. See [LICENSE](LICENSE) for details.
